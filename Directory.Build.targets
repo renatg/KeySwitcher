@@ -1,0 +1,62 @@
+<Project>
+  <!--
+    Opt-in Authenticode signing (needed when Smart App Control is on).
+    Enabled when one of these is set (as an environment variable or with -p:Name=value):
+
+      KsSignThumbprint  SHA-1 thumbprint of a code-signing certificate in the Windows certificate store
+                        (a certificate on a USB token or Certum SimplySign appears there too).
+      KsSignDlib        Path to Azure.CodeSigning.Dlib.dll for Azure Artifact Signing (Trusted Signing),
+      KsSignMetadata    together with the path to its metadata.json.
+
+    Optional: KsTimestampUrl, KsSigntool (path to your own signtool.exe).
+  -->
+  <PropertyGroup>
+    <KsSignEnabled Condition="'$(KsSignThumbprint)' != '' or '$(KsSignDlib)' != ''">true</KsSignEnabled>
+    <KsTimestampUrl Condition="'$(KsTimestampUrl)' == '' and '$(KsSignDlib)' != ''">http://timestamp.acs.microsoft.com</KsTimestampUrl>
+    <KsTimestampUrl Condition="'$(KsTimestampUrl)' == ''">http://timestamp.digicert.com</KsTimestampUrl>
+  </PropertyGroup>
+
+  <!-- signtool.exe from Microsoft's NuGet package, so the Windows SDK does not have to be installed. -->
+  <ItemGroup Condition="'$(KsSignEnabled)' == 'true' and '$(KsSigntool)' == ''">
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742"
+                      ExcludeAssets="all" PrivateAssets="all" GeneratePathProperty="true" />
+  </ItemGroup>
+
+  <Target Name="KsFindSigntool" Condition="'$(KsSignEnabled)' == 'true'">
+    <ItemGroup Condition="'$(KsSigntool)' == ''">
+      <_KsSigntoolCandidate Include="$(PkgMicrosoft_Windows_SDK_BuildTools)\bin\*\x64\signtool.exe" />
+    </ItemGroup>
+    <PropertyGroup Condition="'$(KsSigntool)' == ''">
+      <KsSigntool>%(_KsSigntoolCandidate.FullPath)</KsSigntool>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(KsSigntool)')" Text="signtool.exe не найден (KsSigntool='$(KsSigntool)')." />
+    <Error Condition="'$(KsSignDlib)' != '' and !Exists('$(KsSignMetadata)')"
+           Text="Для Azure Artifact Signing укажите KsSignMetadata — путь к metadata.json." />
+
+    <PropertyGroup>
+      <_KsSignArgs Condition="'$(KsSignDlib)' == ''">/sha1 $(KsSignThumbprint)</_KsSignArgs>
+      <_KsSignArgs Condition="'$(KsSignDlib)' != ''">/dlib &quot;$(KsSignDlib)&quot; /dmdf &quot;$(KsSignMetadata)&quot;</_KsSignArgs>
+      <_KsSignArgs>sign $(_KsSignArgs) /fd SHA256 /tr $(KsTimestampUrl) /td SHA256</_KsSignArgs>
+    </PropertyGroup>
+  </Target>
+
+  <!-- Sign what `dotnet build` produced: the assembly and the .exe launcher. -->
+  <Target Name="KsSignBuildOutput" AfterTargets="Build" DependsOnTargets="KsFindSigntool"
+          Condition="'$(KsSignEnabled)' == 'true'">
+    <ItemGroup>
+      <_KsBuildFile Include="$(TargetPath)" />
+      <_KsBuildFile Include="$(TargetDir)$(AssemblyName).exe" Condition="Exists('$(TargetDir)$(AssemblyName).exe')" />
+    </ItemGroup>
+    <Exec Command="&quot;$(KsSigntool)&quot; $(_KsSignArgs) @(_KsBuildFile->'&quot;%(FullPath)&quot;', ' ')" />
+  </Target>
+
+  <!-- Sign what `dotnet publish` produced (for a single-file publish this is the final bundle). -->
+  <Target Name="KsSignPublishOutput" AfterTargets="Publish" DependsOnTargets="KsFindSigntool"
+          Condition="'$(KsSignEnabled)' == 'true' and '$(OutputType)' == 'WinExe'">
+    <ItemGroup>
+      <_KsPublishFile Include="$(PublishDir)$(AssemblyName).exe" Condition="Exists('$(PublishDir)$(AssemblyName).exe')" />
+      <_KsPublishFile Include="$(PublishDir)$(AssemblyName).dll" Condition="Exists('$(PublishDir)$(AssemblyName).dll')" />
+    </ItemGroup>
+    <Exec Command="&quot;$(KsSigntool)&quot; $(_KsSignArgs) @(_KsPublishFile->'&quot;%(FullPath)&quot;', ' ')" />
+  </Target>
+</Project>

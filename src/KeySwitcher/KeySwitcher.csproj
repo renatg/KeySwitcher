@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- UIAutomationClient (System.Windows.Automation) is used to read the selected text. -->
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <AssemblyName>KeySwitcher</AssemblyName>
+    <RootNamespace>KeySwitcher</RootNamespace>
+    <Version>1.0.0</Version>
+    <Product>KeySwitcher</Product>
+    <Description>Автопереключатель раскладки RU/EN</Description>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WPF implicit usings clash with WinForms types (Application, MessageBox, ...). -->
+    <Using Include="System.IO" />
+    <Using Remove="System.Windows" />
+    <Using Remove="System.Windows.Controls" />
+    <Using Remove="System.Windows.Data" />
+    <Using Remove="System.Windows.Documents" />
+    <Using Remove="System.Windows.Input" />
+    <Using Remove="System.Windows.Media" />
+    <Using Remove="System.Windows.Media.Imaging" />
+    <Using Remove="System.Windows.Navigation" />
+    <Using Remove="System.Windows.Shapes" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Detection\Resources\ru.txt" LogicalName="KeySwitcher.Dictionaries.ru.txt" />
+    <EmbeddedResource Include="Detection\Resources\en.txt" LogicalName="KeySwitcher.Dictionaries.en.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="KeySwitcher.Tests" />
+  </ItemGroup>
+
+</Project>
